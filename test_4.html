@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>印象評価実験</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      overflow: hidden;
+      background-color: black;
+      font-family: sans-serif;
+    }
+    #map {
+      width: 100vw;
+      height: 100vh;
+      display: none;
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 0;
+    }
+    #formContainer {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      width: 500px;
+      height: 600px;
+      display: none;
+      z-index: 1000;
+      background-color: white;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    #formFrame {
+      width: 100%;
+      height: 100%;
+      border: none;
+      background-color: white;
+    }
+    #instructions, #transition, #finished, #blackScreen {
+      width: 100vw;
+      height: 100vh;
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      color: white;
+      text-align: center;
+      padding: 20px;
+      box-sizing: border-box;
+      position: absolute;
+      top: 0;
+      left: 0;
+      background-color: black;
+      z-index: 1001;
+    }
+    #controls {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      z-index: 1100;
+    }
+    button {
+      font-size: 18px;
+      padding: 10px 20px;
+      margin: 0 5px;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="instructions">
+    <h1>実験の注意事項</h1>
+    <p>実験にご協力いただき、ありがとうございます。</p>
+    <p>最初に4地点で個別評価を行い、その後、7地点の連続提示＋最後の評価を4回繰り返します。</p>
+    <p>「次へ」を押すと実験が始まります。</p>
+  </div>
+
+  <div id="transition">
+    <h1>これから連続提示パートに入ります</h1>
+    <p>7地点を連続して見た後に、最後の地点で評価をしていただきます。</p>
+  </div>
+
+  <div id="finished">
+    <h1>実験は終了しました。ご協力ありがとうございました。</h1>
+  </div>
+
+  <div id="blackScreen">
+    <h2>全体を見まわしてから「次へ」を押して評価に進んでください</h2>
+  </div>
+
+  <div id="map"></div>
+
+  <div id="formContainer">
+    <iframe id="formFrame" src="https://forms.gle/fAMZ1dLC3SahTDjw7" allowfullscreen></iframe>
+  </div>
+
+  <div id="controls">
+    <button onclick="goBack()">戻る</button>
+    <button onclick="goNext()">次へ</button>
+  </div>
+
+  <script>
+    let map, panorama;
+    let step = 0;
+    let viewpointLogs = [];
+
+    const singlePoints = [
+      { lat: 35.715100, lng: 139.775800, heading: 0 },
+      { lat: 35.715200, lng: 139.775810, heading: 90 },
+      { lat: 35.715300, lng: 139.775820, heading: 180 },
+      { lat: 35.715400, lng: 139.775830, heading: 270 }
+    ];
+
+    const pathSequence = [
+      // Set 1
+      {lat: 35.715395, lng: 139.775899, heading: 294.5377284743488},
+      {lat: 35.715416, lng: 139.775853, heading: 26.565051177077976},
+      {lat: 35.715438, lng: 139.775864, heading: 112.47943440275168},
+      {lat: 35.715402, lng: 139.775951, heading: 26.56505121197324},
+      {lat: 35.715416, lng: 139.775958, heading: 86.98721249188054},
+      {lat: 35.715418, lng: 139.775996, heading: 169.777831366152},
+      {lat: 35.715357, lng: 139.776007, heading: 211.26373167237142},
+      // Set 2
+      {lat: 36.298834, lng: 139.078224, heading: 118.3930194257556},
+      {lat: 36.298814, lng: 139.078261, heading: 91.1691393251956},
+      {lat: 36.298813, lng: 139.07831, heading: 95.71059313749964},
+      {lat: 36.298808, lng: 139.07836, heading: 92.54480438242149},
+      {lat: 36.298806, lng: 139.078405, heading: 91.30195266921606},
+      {lat: 36.298805, lng: 139.078449, heading: 80.34010691922924},
+      {lat: 36.298813, lng: 139.078496, heading: 91.87787744958047},
+      // Set 3
+      {lat: 35.108896, lng: 135.94616, heading: 281.94417719305784},
+      {lat: 35.108907, lng: 135.946108, heading: 266.1859251663101},
+      {lat: 35.108904, lng: 135.946063, heading: 282.2251226679586},
+      {lat: 35.108917, lng: 135.946003, heading: 298.9264258464843},
+      {lat: 35.108938, lng: 135.945965, heading: 280.61965527308257},
+      {lat: 35.108944, lng: 135.945933, heading: 17.65012424437208},
+      {lat: 35.108966, lng: 135.94594, heading: 15.708637839700089},
+      // Set 4
+      { lat: 35.715031, lng: 139.775931, heading: 30 },
+      { lat: 35.715032, lng: 139.775932, heading: 75 },
+      { lat: 35.715033, lng: 139.775933, heading: 120 },
+      { lat: 35.715034, lng: 139.775934, heading: 165 },
+      { lat: 35.715035, lng: 139.775935, heading: 210 },
+      { lat: 35.715036, lng: 139.775936, heading: 255 },
+      { lat: 35.715037, lng: 139.775937, heading: 300 }
+    ];
+
+    const steps = [];
+
+    steps.push({ type: "instructions" });
+
+    for (let i = 0; i < 4; i++) {
+      steps.push({ type: "gsv_single", index: i, label: `random-${i + 1}` });
+      steps.push({ type: "form_single", index: i, label: `random-${i + 1}` });
+      steps.push({ type: "black" });
+    }
+
+    steps.push({ type: "transition" });
+
+    for (let set = 1; set <= 4; set++) {
+      for (let j = 0; j < 7; j++) {
+        const idx = (set - 1) * 7 + j;
+        steps.push({ type: "gsv_seq", index: idx, label: `sequence${set}-${j + 1}` });
+      }
+      steps.push({ type: "form_seq", index: set, label: `sequence${set}-form` });
+    }
+
+    steps.push({ type: "finished" });
+
+    function initializeStreetView(loc, label) {
+      map = new google.maps.Map(document.getElementById("map"), {
+        center: loc,
+        zoom: 14,
+        streetViewControl: false,
+        disableDefaultUI: true
+      });
+
+      panorama = new google.maps.StreetViewPanorama(document.getElementById("map"), {
+        position: loc,
+        pov: { heading: loc.heading, pitch: 0 },
+        disableDefaultUI: true,
+        clickToGo: false,
+        scrollwheel: false,
+        linksControl: false,
+        zoomControl: false
+      });
+
+      panorama.setPov({ heading: loc.heading, pitch: 0, zoom: 0.8 });
+      map.setStreetView(panorama);
+
+      panorama.addListener("pov_changed", () => {
+        const pov = panorama.getPov();
+        const panoId = panorama.getPano();
+        const time = new Date().toISOString();
+        viewpointLogs.push({
+          stepLabel: label,
+          time,
+          lat: loc.lat,
+          lng: loc.lng,
+          panoId,
+          heading: pov.heading,
+          pitch: pov.pitch
+        });
+      });
+    }
+
+    function updateView() {
+      const current = steps[step];
+      ["map", "formContainer", "instructions", "finished", "blackScreen", "transition"].forEach(id => {
+        document.getElementById(id).style.display = "none";
+      });
+
+      if (!current) return;
+
+      document.getElementById("map").style.display = "block";
+
+      if (current.type === "instructions") {
+        document.getElementById("instructions").style.display = "flex";
+      } else if  (current.type === "gsv_single") {
+        initializeStreetView(singlePoints[current.index], current.label);
+      } else if (current.type === "form_single" || current.type === "form_seq") {
+        document.getElementById("formContainer").style.display = "block";
+      } else if (current.type === "black") {
+        document.getElementById("blackScreen").style.display = "flex";
+      } else if (current.type === "transition") {
+        document.getElementById("transition").style.display = "flex";
+      } else if (current.type === "gsv_seq") {
+        initializeStreetView(pathSequence[current.index], current.label);
+      } else if (current.type === "finished") {
+        document.getElementById("finished").style.display = "flex";
+        downloadViewpointCSV();
+      }
+    }
+
+    function goNext() {
+      if (step < steps.length - 1) {
+        step++;
+        updateView();
+      }
+    }
+
+    function goBack() {
+      if (step > 0) {
+        step--;
+        updateView();
+      }
+    }
+
+    function downloadViewpointCSV() {
+      let csv = "stepLabel,time,lat,lng,panoId,heading,pitch\n";
+      viewpointLogs.forEach(d => {
+        csv += `${d.stepLabel},${d.time},${d.lat},${d.lng},${d.panoId},${d.heading},${d.pitch}\n`;
+      });
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "viewpoint_log_<subjectID>.csv";
+      a.click();
+    }
+
+    window.onload = updateView;
+  </script>
+
+  <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCbdMQtJ9YPn8vdiSTc3jkwab2Z7z5HOkY"></script>
+</body>
+</html>
